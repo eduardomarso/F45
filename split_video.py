@@ -30,7 +30,7 @@ def split_and_merge_video(input_folder, output_gif, segment_duration=10):
         for start_time in range(0, int(video_duration), segment_duration):
             end_time = min(start_time + segment_duration - 0.5, video_duration)
             subclip = video.subclip(start_time, end_time)
-            subclip = subclip.fx(speedx, 1.5)  # Speed up x2
+            subclip = subclip.fx(speedx, 1)  # Speed up x2
 
             # Resize while keeping a horizontal orientation
             subclip = subclip.fl_image(lambda frame: resize_frame(frame, video.w // 2))  # Reduce resolution by half

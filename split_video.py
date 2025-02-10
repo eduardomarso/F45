@@ -5,8 +5,8 @@ import numpy as np
 from PIL import Image
 from concurrent.futures import ThreadPoolExecutor
 
-def split_and_merge_video(input_folder, output_gif, segment_duration=10):
-    """Splits video into GIFs and merges them vertically into one or two stacked GIFs."""
+def split_and_merge_video(input_folder, output_gif, segment_duration=10, max_gif_size_mb=10):
+    """Splits a workout video into 2 GIFs, ensuring each GIF stays under 10MB."""
     
     os.makedirs(os.path.dirname(output_gif), exist_ok=True)
 
@@ -24,58 +24,66 @@ def split_and_merge_video(input_folder, output_gif, segment_duration=10):
     print(f"Processing video: {input_video} (Duration: {video_duration:.2f}s)")
 
     clips = []
-    clip_index = 1  
-
+    
     with ThreadPoolExecutor() as executor:
         for start_time in range(0, int(video_duration), segment_duration):
             end_time = min(start_time + segment_duration - 0.5, video_duration)
             subclip = video.subclip(start_time, end_time)
-            subclip = subclip.fx(speedx, 1)  # Speed up x2
+            subclip = subclip.fx(speedx, 1.4)  # Slight speedup to reduce size
 
-            # Resize while keeping a horizontal orientation
-            subclip = subclip.fl_image(lambda frame: resize_frame(frame, video.w // 2))  # Reduce resolution by half
+            # Resize dynamically based on target size
+            subclip = subclip.fl_image(lambda frame: resize_frame(frame, video.w // 2))
 
             clips.append(subclip)
-            clip_index += 1  
 
     if clips:
-        # Split the clips into two parts
         total_clips = len(clips)
         half = (total_clips + 1) // 2  # Ensures the first GIF gets the extra clip if odd
 
-        # Create the first GIF with the first half of the clips
+        # First GIF
         first_clips = clips[:half]
         first_output_gif = output_gif.replace(".gif", "1.gif")
-        stacked_clip = clips_array([[clip] for clip in first_clips])
-        stacked_clip.write_gif(
-            first_output_gif,
-            fps=15,  # Maintain smooth playback
-            program="ffmpeg",
-            fuzz=3,
-            loop=0,
-            colors=128,  # Reduce the number of colors to 128
-            opt="OptimizePlus",  # Optimize the GIF
-        )
-        print(f"First stacked GIF saved: {first_output_gif}")
+        save_gif(first_clips, first_output_gif, max_gif_size_mb)
 
-        # Create the second GIF with the remaining clips
-        if total_clips > half:
-            second_clips = clips[half:]
+        # Second GIF
+        second_clips = clips[half:]
+        if second_clips:
             second_output_gif = output_gif.replace(".gif", "2.gif")
-            stacked_clip = clips_array([[clip] for clip in second_clips])
+            save_gif(second_clips, second_output_gif, max_gif_size_mb)
+
+def save_gif(clips, output_path, max_size_mb):
+    """Saves a stacked GIF while ensuring it remains under the given size limit (in MB)."""
+    if not clips:
+        return
+
+    colors_list = [128, 64, 32]  # Reduce color depth for smaller size
+    width_factors = [1.0, 0.8, 0.6, 0.5]  # Reduce resolution dynamically
+    base_fps = 15  # Fixed FPS for consistency
+
+    for width_factor in width_factors:
+        for colors in colors_list:
+            resized_clips = [clip.fl_image(lambda frame: resize_frame(frame, int(clip.w * width_factor))) for clip in clips]
+
+            stacked_clip = clips_array([[clip] for clip in resized_clips])
             stacked_clip.write_gif(
-                second_output_gif,
-                fps=15,  # Maintain smooth playback
+                output_path,
+                fps=base_fps,  # Constant smoothness
                 program="ffmpeg",
-                fuzz=3,
+                fuzz=10,  # More aggressive compression
                 loop=0,
-                colors=128,  # Reduce the number of colors to 128
-                opt="OptimizePlus",  # Optimize the GIF
+                colors=colors,
+                opt="OptimizePlus",
             )
-            print(f"Second stacked GIF saved: {second_output_gif}")
+
+            # Check file size
+            if os.path.exists(output_path) and os.path.getsize(output_path) <= max_size_mb * 1024 * 1024:
+                print(f"✅ GIF saved under {max_size_mb}MB: {output_path} (Size: {os.path.getsize(output_path) / 1024 / 1024:.2f}MB)")
+                return  # Stop searching when a valid size is achieved
+
+    print(f"⚠️ Warning: Could not keep {output_path} under {max_size_mb}MB even with max compression.")
 
 def resize_frame(frame, width):
-    """Resizes a frame while maintaining horizontal aspect ratio."""
+    """Resizes a frame while maintaining aspect ratio."""
     current_height, current_width = frame.shape[:2]
 
     if current_width > current_height:

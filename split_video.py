@@ -95,6 +95,6 @@ def resize_frame(frame, width):
     return np.array(resized_frame)
 
 if __name__ == "__main__":
-    input_folder = "/input"
-    output_gif = "/output/🤸.gif"
+    input_folder = "/app/input/workout"
+    output_gif = "/app/output/🤸.gif"
     split_and_merge_video(input_folder, output_gif)

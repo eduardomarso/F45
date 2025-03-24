@@ -9,34 +9,35 @@ from concurrent.futures import ThreadPoolExecutor
 
 # AWS S3 Config
 S3_BUCKET = "3dy"
-INPUT_FOLDER = "/app/F45/input"
-OUTPUT_FOLDER = "/app/F45/output"
+INPUT_FOLDER = "/app/input"  # Updated to match Docker structure
+OUTPUT_FOLDER = "/app/output"
 S3_CLIENT = boto3.client("s3")
 
 def clean_output_folder():
     """Delete all files in the output folder before processing."""
     if os.path.exists(OUTPUT_FOLDER):
-        shutil.rmtree(OUTPUT_FOLDER)  # Delete the entire folder
+        shutil.rmtree(OUTPUT_FOLDER)
     os.makedirs(OUTPUT_FOLDER, exist_ok=True)
     print("✅ Cleared output folder.")
 
 def download_from_s3():
-    """Download the first video file from S3 bucket and clear input folder after."""
+    """Download the first video file from S3 bucket to input folder."""
     
-    # Ensure input folder is empty before processing
+    # Ensure input folder is empty
     if os.path.exists(INPUT_FOLDER):
-        shutil.rmtree(INPUT_FOLDER)  # Delete existing input files
+        shutil.rmtree(INPUT_FOLDER)
     os.makedirs(INPUT_FOLDER, exist_ok=True)
 
     objects = S3_CLIENT.list_objects_v2(Bucket=S3_BUCKET, Prefix="F45/input/")
 
     if "Contents" in objects:
         for obj in objects["Contents"]:
-            filename = obj["Key"].split("/")[-1]
-            local_path = os.path.join(INPUT_FOLDER, filename)
-            S3_CLIENT.download_file(S3_BUCKET, obj["Key"], local_path)
-            print(f"✅ Downloaded {filename} from S3")
-            return local_path  # Process only the first video
+            filename = os.path.basename(obj["Key"])  # Extract filename properly
+            if filename.lower().endswith(('.mp4', '.mov', '.avi')):  # Filter valid video files
+                local_path = os.path.join(INPUT_FOLDER, filename)
+                S3_CLIENT.download_file(S3_BUCKET, obj["Key"], local_path)
+                print(f"✅ Downloaded {filename} from S3")
+                return local_path  # Process only the first video
 
     print("❌ No video files found in S3 input folder.")
     return None
@@ -55,14 +56,14 @@ def split_and_merge_video(input_folder, output_gif, segment_duration=10, max_gif
     
     video_files = [f for f in os.listdir(input_folder) if f.lower().endswith(('.mp4', '.mov', '.avi'))]
     if not video_files:
-        print("No video files found in the input folder.")
+        print("❌ No video files found in the input folder.")
         return
 
     input_video = os.path.join(input_folder, video_files[0])
     video = VideoFileClip(input_video)
     video_duration = video.duration
 
-    print(f"Processing video: {input_video} (Duration: {video_duration:.2f}s)")
+    print(f"🎥 Processing video: {input_video} (Duration: {video_duration:.2f}s)")
 
     clips = []
     

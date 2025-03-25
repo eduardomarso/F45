@@ -9,16 +9,40 @@ from concurrent.futures import ThreadPoolExecutor
 
 # AWS S3 Config
 S3_BUCKET = "3dy"
-INPUT_FOLDER = "/app/input"  # Updated to match Docker structure
+S3_INPUT_PREFIX = "F45/input/"
+S3_OUTPUT_PREFIX = "F45/output/"
+INPUT_FOLDER = "/app/input"
 OUTPUT_FOLDER = "/app/output"
 S3_CLIENT = boto3.client("s3")
+
+def clean_s3_output_folder():
+    """Delete all files in the S3 output folder before processing."""
+    objects = S3_CLIENT.list_objects_v2(Bucket=S3_BUCKET, Prefix=S3_OUTPUT_PREFIX)
+    
+    if "Contents" in objects:
+        for obj in objects["Contents"]:
+            S3_CLIENT.delete_object(Bucket=S3_BUCKET, Key=obj["Key"])
+            print(f"🗑️ Deleted {obj['Key']} from S3 output folder.")
+
+    print("✅ S3 output folder cleaned.")
+
+def clean_s3_input_folder():
+    """Delete all files in the S3 input folder after processing."""
+    objects = S3_CLIENT.list_objects_v2(Bucket=S3_BUCKET, Prefix=S3_INPUT_PREFIX)
+    
+    if "Contents" in objects:
+        for obj in objects["Contents"]:
+            S3_CLIENT.delete_object(Bucket=S3_BUCKET, Key=obj["Key"])
+            print(f"🗑️ Deleted {obj['Key']} from S3 input folder.")
+
+    print("✅ S3 input folder cleaned.")
 
 def clean_output_folder():
     """Delete all files in the output folder before processing."""
     if os.path.exists(OUTPUT_FOLDER):
         shutil.rmtree(OUTPUT_FOLDER)
     os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-    print("✅ Cleared output folder.")
+    print("✅ Local output folder cleaned.")
 
 def download_from_s3():
     """Download the first video file from S3 bucket to input folder."""
@@ -28,12 +52,12 @@ def download_from_s3():
         shutil.rmtree(INPUT_FOLDER)
     os.makedirs(INPUT_FOLDER, exist_ok=True)
 
-    objects = S3_CLIENT.list_objects_v2(Bucket=S3_BUCKET, Prefix="F45/input/")
+    objects = S3_CLIENT.list_objects_v2(Bucket=S3_BUCKET, Prefix=S3_INPUT_PREFIX)
 
     if "Contents" in objects:
         for obj in objects["Contents"]:
-            filename = os.path.basename(obj["Key"])  # Extract filename properly
-            if filename.lower().endswith(('.mp4', '.mov', '.avi')):  # Filter valid video files
+            filename = os.path.basename(obj["Key"])
+            if filename.lower().endswith(('.mp4', '.mov', '.avi')):
                 local_path = os.path.join(INPUT_FOLDER, filename)
                 S3_CLIENT.download_file(S3_BUCKET, obj["Key"], local_path)
                 print(f"✅ Downloaded {filename} from S3")
@@ -46,7 +70,7 @@ def upload_to_s3():
     """Upload output files to S3."""
     for file in os.listdir(OUTPUT_FOLDER):
         file_path = os.path.join(OUTPUT_FOLDER, file)
-        S3_CLIENT.upload_file(file_path, S3_BUCKET, f"F45/output/{file}")
+        S3_CLIENT.upload_file(file_path, S3_BUCKET, f"{S3_OUTPUT_PREFIX}{file}")
         print(f"✅ Uploaded {file} to S3 output folder.")
 
 def split_and_merge_video(input_folder, output_gif, segment_duration=10, max_gif_size_mb=10):
@@ -114,8 +138,11 @@ def resize_frame(frame, width):
     return np.array(resized_frame)
 
 if __name__ == "__main__":
-    clean_output_folder()  # Ensure output folder is cleared before processing
+    clean_s3_output_folder()  # Ensure S3 output is empty before processing
+    clean_output_folder()  # Ensure local output folder is empty
+
     video_path = download_from_s3()
     if video_path:
         split_and_merge_video(INPUT_FOLDER, os.path.join(OUTPUT_FOLDER, "🤸.gif"))
         upload_to_s3()
+        clean_s3_input_folder()  # Clean input folder after processing

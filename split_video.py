@@ -45,12 +45,13 @@ def clean_s3_input_folder():
 
     print("✅ S3 input folder cleaned.")
 
-def clean_output_folder():
-    """Delete all files in the output folder before processing."""
-    if os.path.exists(OUTPUT_FOLDER):
-        shutil.rmtree(OUTPUT_FOLDER)
-    os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-    print("✅ Local output folder cleaned.")
+def clean_local_folder(folder_path):
+    """Delete all files in the specified local folder."""
+    for file_name in os.listdir(folder_path):
+        file_path = os.path.join(folder_path, file_name)
+        if os.path.isfile(file_path):
+            os.remove(file_path)
+            print(f"🗑️ Deleted {file_path} from local folder.")
 
 def download_from_s3():
     """Download the first video file from S3 bucket to input folder."""
@@ -58,12 +59,9 @@ def download_from_s3():
     # Ensure input folder exists
     create_folder_if_not_exists(INPUT_FOLDER)
 
-    # Ensure input folder is empty
-    for file_name in os.listdir(INPUT_FOLDER):
-        file_path = os.path.join(INPUT_FOLDER, file_name)
-        if os.path.isfile(file_path):
-            os.remove(file_path)
-    
+    # Clean the content of the input folder (do not delete the folder itself)
+    clean_local_folder(INPUT_FOLDER)
+
     objects = S3_CLIENT.list_objects_v2(Bucket=S3_BUCKET, Prefix=S3_INPUT_PREFIX)
 
     if "Contents" in objects:
@@ -151,10 +149,10 @@ def resize_frame(frame, width):
 
 if __name__ == "__main__":
     clean_s3_output_folder()  # Ensure S3 output is empty before processing
-    clean_output_folder()  # Ensure local output folder is empty
+    clean_local_folder(OUTPUT_FOLDER)  # Ensure local output folder is empty
 
     video_path = download_from_s3()
     if video_path:
         split_and_merge_video(INPUT_FOLDER, os.path.join(OUTPUT_FOLDER, "🤸.gif"))
         upload_to_s3()
-        clean_s3_input_folder()  # Clean input folder after processing
+        clean_s3_input_folder()  # Clean S3 input folder after processing

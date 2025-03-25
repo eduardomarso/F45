@@ -8,12 +8,20 @@ from PIL import Image
 from concurrent.futures import ThreadPoolExecutor
 
 # AWS S3 Config
-S3_BUCKET = "3du"
+S3_BUCKET = "3dy"
 S3_INPUT_PREFIX = "F45/input/"
 S3_OUTPUT_PREFIX = "F45/output/"
 INPUT_FOLDER = "/app/input"
 OUTPUT_FOLDER = "/app/output"
 S3_CLIENT = boto3.client("s3")
+
+def create_folder_if_not_exists(folder_path):
+    """Create folder if it does not already exist."""
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path, exist_ok=True)
+        print(f"✅ Created folder: {folder_path}")
+    else:
+        print(f"✅ Folder already exists: {folder_path}")
 
 def clean_s3_output_folder():
     """Delete all files in the S3 output folder before processing."""
@@ -47,11 +55,15 @@ def clean_output_folder():
 def download_from_s3():
     """Download the first video file from S3 bucket to input folder."""
     
-    # Ensure input folder is empty
-    if os.path.exists(INPUT_FOLDER):
-        shutil.rmtree(INPUT_FOLDER)
-    os.makedirs(INPUT_FOLDER, exist_ok=True)
+    # Ensure input folder exists
+    create_folder_if_not_exists(INPUT_FOLDER)
 
+    # Ensure input folder is empty
+    for file_name in os.listdir(INPUT_FOLDER):
+        file_path = os.path.join(INPUT_FOLDER, file_name)
+        if os.path.isfile(file_path):
+            os.remove(file_path)
+    
     objects = S3_CLIENT.list_objects_v2(Bucket=S3_BUCKET, Prefix=S3_INPUT_PREFIX)
 
     if "Contents" in objects:

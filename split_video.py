@@ -114,7 +114,7 @@ def resize_frame(frame, width):
     return np.array(resized_frame)
 
 if __name__ == "__main__":
-    clean_output_folder()
+    clean_output_folder()  # Ensure output folder is cleared before processing
     video_path = download_from_s3()
     if video_path:
         split_and_merge_video(INPUT_FOLDER, os.path.join(OUTPUT_FOLDER, "🤸.gif"))

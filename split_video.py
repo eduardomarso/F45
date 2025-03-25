@@ -8,7 +8,7 @@ from PIL import Image
 from concurrent.futures import ThreadPoolExecutor
 
 # AWS S3 Config
-S3_BUCKET = "3dy"
+S3_BUCKET = "3du"
 S3_INPUT_PREFIX = "F45/input/"
 S3_OUTPUT_PREFIX = "F45/output/"
 INPUT_FOLDER = "/app/input"

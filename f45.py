@@ -4,36 +4,33 @@ import re
 import time
 import numpy as np
 from moviepy.editor import VideoFileClip, clips_array
-from moviepy.video.fx.all import speedx
+from moviepy.video.fx.all import speedx, crop
 from PIL import Image
 
 def convert_mov_to_mp4(input_path):
     """Converts a .mov file to .mp4 using ffmpeg if needed and waits for the conversion."""
     if not input_path.lower().endswith(".mov"):
-        return input_path  # No conversion needed
+        return input_path
 
     output_path = input_path.replace(".mov", ".mp4")
     print(f"🎥 Converting {input_path} to {output_path}...")
 
-    command = [
-        "ffmpeg", "-i", input_path, "-vcodec", "libx264",
-        "-acodec", "aac", "-strict", "experimental", output_path
-    ]
+    command = ["ffmpeg", "-i", input_path, "-vcodec", "libx264", "-acodec", "aac", "-strict", "experimental", output_path]
 
     try:
         subprocess.run(command, check=True)
-        os.remove(input_path)  # Remove the original .mov file after conversion
-        print(f"✅ Conversion successful: {output_path}")
 
-        # Wait for the converted file to be fully written before returning
+        # Wait for file to be fully written
         if wait_for_file(output_path):
+            os.remove(input_path)  # ✅ Delete only after confirming MP4 exists
+            print(f"✅ Conversion successful: {output_path}")
             return output_path
         else:
-            print(f"⚠️ Converted file {output_path} not found after conversion.")
-            return input_path  # Fallback to original file if something goes wrong
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Conversion failed: {e}")
-        return input_path  # Use the original file if conversion fails
+            print(f"⚠️ Warning: Conversion finished, but {output_path} not detected in time.")
+            return input_path
+    except subprocess.CalledProcessError:
+        print("❌ Conversion failed.")
+        return input_path
 
 def wait_for_file(file_path, timeout=30):
     """Waits until a file exists and is fully written."""
@@ -42,12 +39,58 @@ def wait_for_file(file_path, timeout=30):
         if os.path.exists(file_path):
             try:
                 with open(file_path, "r", encoding="utf-8") as f:
-                    f.read()  # Ensure it's not locked
+                    f.read()
                 return True
             except:
                 pass
         time.sleep(1)
     return False
+
+def crop_video_center(video):
+    """Crops the video to 1575x888, centering it horizontally."""
+    target_width, target_height = 1575, 888
+    crop_x = (video.w - target_width) // 2
+    return crop(video, x1=crop_x, y1=0, x2=crop_x + target_width, y2=target_height)
+
+def split_and_merge_video(input_folder, output_gif, segment_duration=10, max_gif_size_mb=10):
+    """Splits a workout video into exactly 2 GIFs, each covering half the total clips."""
+    os.makedirs(os.path.dirname(output_gif), exist_ok=True)
+    video_files = [f for f in os.listdir(input_folder) if f.lower().endswith(('.mp4', '.mov', '.avi'))]
+    if not video_files:
+        print("⚠️ No video files found.")
+        return
+
+    input_video = os.path.join(input_folder, video_files[0])
+    if input_video.lower().endswith(".mov"):
+        input_video = convert_mov_to_mp4(input_video)
+
+    video = VideoFileClip(input_video)
+    video = crop_video_center(video)
+    video_duration = video.duration
+    print(f"📹 Processing video: {input_video} (Duration: {video_duration:.2f}s)")
+
+    clips = [video.subclip(start, min(start + segment_duration, video_duration)).fx(speedx, 1.4)
+             for start in range(0, int(video_duration), segment_duration)]
+
+    half = len(clips) // 2
+    save_gif(clips[:half], output_gif.replace(".gif", "1.gif"), max_gif_size_mb)
+    save_gif(clips[half:], output_gif.replace(".gif", "2.gif"), max_gif_size_mb)
+    print("✅ GIFs created successfully.")
+
+def save_gif(clips, output_path, max_size_mb):
+    """Saves GIF while ensuring it remains under the size limit."""
+    if not clips:
+        print(f"⚠️ No clips provided for {output_path}")
+        return
+
+    print(f"🔨 Saving GIF: {output_path}...")
+    stacked_clip = clips_array([[clip] for clip in clips])
+    stacked_clip.write_gif(output_path, fps=15, program="ffmpeg", fuzz=10, loop=0, colors=128, opt="OptimizePlus")
+
+    if os.path.exists(output_path) and os.path.getsize(output_path) <= max_size_mb * 1024 * 1024:
+        print(f"✅ GIF saved under {max_size_mb}MB: {output_path}")
+    else:
+        print(f"⚠️ Warning: GIF {output_path} may exceed {max_size_mb}MB limit.")
 
 def clean_transcription(text):
     """Removes SRT timestamps and line numbers while preserving sentence structure and formatting into a paragraph."""
@@ -118,80 +161,6 @@ def transcribe_videos():
         print(f"❌ Transcription failed: {e}")
     except Exception as e:
         print(f"⚠️ Unexpected error: {e}")
-
-def split_and_merge_video(input_folder, output_gif, segment_duration=10, max_gif_size_mb=10):
-    """Splits a workout video into exactly 2 GIFs, each covering half the total clips."""
-    os.makedirs(os.path.dirname(output_gif), exist_ok=True)
-
-    video_files = [f for f in os.listdir(input_folder) if f.lower().endswith(('.mp4', '.mov', '.avi'))]
-    if not video_files:
-        print("⚠️ No video files found in the input folder.")
-        return
-
-    input_video = os.path.join(input_folder, video_files[0])
-
-    # Convert .mov files to .mp4 before processing
-    if input_video.lower().endswith(".mov"):
-        input_video = convert_mov_to_mp4(input_video)
-
-    if not input_video.lower().endswith(".mp4"):
-        print("❌ No valid .mp4 video available for processing.")
-        return
-
-    video = VideoFileClip(input_video)
-    video_duration = video.duration
-    print(f"📹 Processing video: {input_video} (Duration: {video_duration:.2f}s)")
-
-    clips = [video.subclip(start, min(start + segment_duration, video_duration))
-             .fx(speedx, 1.2)
-             .fl_image(lambda frame: resize_frame(frame, video.w // 2))
-             for start in range(0, int(video_duration), segment_duration)]
-
-    num_clips = len(clips)
-
-    if num_clips < 2:
-        print("⚠️ Error: The video must generate at least 2 clips to split evenly.")
-        return
-
-    # Split clips into exactly two equal parts
-    half = num_clips // 2
-    first_clips = clips[:half]
-    second_clips = clips[half:]
-
-    output_gif1 = output_gif.replace(".gif", "1.gif")
-    output_gif2 = output_gif.replace(".gif", "2.gif")
-
-    print(f"🎬 Generating first GIF: {output_gif1}...")
-    save_gif(first_clips, output_gif1, max_gif_size_mb)
-
-    print(f"🎬 Generating second GIF: {output_gif2}...")
-    save_gif(second_clips, output_gif2, max_gif_size_mb)
-
-    print(f"✅ GIFs created successfully: {output_gif1}, {output_gif2}")
-
-def save_gif(clips, output_path, max_size_mb):
-    """Saves a stacked GIF while ensuring it remains under the size limit."""
-    if not clips:
-        print(f"⚠️ No clips provided for {output_path}")
-        return
-
-    print(f"🔨 Saving GIF: {output_path}...")
-
-    base_fps = 15
-    width_factor = 1.0  # Default width scaling
-    colors = 128  # Default color depth
-
-    resized_clips = [clip.fl_image(lambda frame: resize_frame(frame, int(clip.w * width_factor))) for clip in clips]
-    stacked_clip = clips_array([[clip] for clip in resized_clips])
-
-    print(f"🖼 Creating GIF frames for {output_path}...")
-    stacked_clip.write_gif(output_path, fps=base_fps, program="ffmpeg", fuzz=10, loop=0, colors=colors, opt="OptimizePlus")
-
-    # Ensure the GIF is under max size
-    if os.path.exists(output_path) and os.path.getsize(output_path) <= max_size_mb * 1024 * 1024:
-        print(f"✅ GIF saved under {max_size_mb}MB: {output_path} ({os.path.getsize(output_path) / 1024 / 1024:.2f}MB)")
-    else:
-        print(f"⚠️ Warning: GIF {output_path} may exceed {max_size_mb}MB limit.")
 
 def resize_frame(frame, width):
     """Resizes a frame while maintaining aspect ratio."""

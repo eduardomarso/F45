@@ -1,22 +1,34 @@
-FROM python:3.10-slim
+FROM python:3.10-bullseye
 
-# Set the working directory
 WORKDIR /app
 
-# Install dependencies
-RUN apt-get update && apt-get install -y ffmpeg git && rm -rf /var/lib/apt/lists/*
+# Set a better Debian mirror to avoid network issues
+RUN echo "deb http://ftp.debian.org/debian bullseye main" > /etc/apt/sources.list && \
+    apt-get update --allow-releaseinfo-change && \
+    apt-get install -y --no-install-recommends \
+        ffmpeg git wget curl software-properties-common gnupg2 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies for both tasks
-RUN pip install --no-cache-dir moviepy pillow==8.3.2 openai-whisper psutil ffmpeg-python youtube-dl validators
+# Install Python dependencies
+RUN pip install --no-cache-dir \
+    moviepy \
+    pillow==8.3.2 \
+    numpy \
+    ffmpeg-python \
+    youtube-dl \
+    validators \
+    openai-whisper \
+    psutil
 
-# Clone the Video-Transcribe repository for transcription task
+# Clone Video-Transcribe repository
 RUN git clone https://github.com/a2nath/Video-Transcribe.git /app/Video-Transcribe
 
-# Create input and output directories
+# Create directories for input/output
 RUN mkdir -p /app/input/workout /app/input/transcript /app/output
 
-# Copy the split_video.py (from workout splitting task) into the container
-COPY split_video.py /app/split_video.py
+# Copy the main script
+COPY f45.py /app/f45.py
 
-# Entry point to run both tasks concurrently
-ENTRYPOINT ["bash", "-c", "python /app/split_video.py /app/input/workout /app/output/🤸.gif & python /app/Video-Transcribe/whisper-og.py -i /app/input/transcript -od /app/output & wait"]
+# Set entrypoint
+ENTRYPOINT ["python", "/app/f45.py"]

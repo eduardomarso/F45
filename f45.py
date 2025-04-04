@@ -7,6 +7,7 @@ from moviepy.editor import VideoFileClip, clips_array
 from moviepy.video.fx.all import speedx, crop
 from PIL import Image
 
+
 def convert_mov_to_mp4(input_path):
     """Converts a .mov file to .mp4 using ffmpeg if needed and waits for the conversion."""
     if not input_path.lower().endswith(".mov"):

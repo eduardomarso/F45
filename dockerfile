@@ -11,7 +11,7 @@ RUN pip install --no-cache-dir \
     openai-whisper \
     psutil \
     ffmpeg-python \
-    boto3
+    validators
 
 RUN git clone https://github.com/a2nath/Video-Transcribe.git /app/Video-Transcribe
 RUN mkdir -p /app/input /app/output

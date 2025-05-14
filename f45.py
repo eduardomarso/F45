@@ -199,7 +199,23 @@ def clean_transcription(text):
 
 
 if __name__ == "__main__":
-    input_dir = "/app/input"
-    workout_video, transcript_video, image_path = identify_files(input_dir)
-    transcribe_video(transcript_video)
-    split_and_merge_video(workout_video, "/app/output/🤸.gif")
+    input_folder = "/app/input"
+    output_folder = "/app/output"
+    os.makedirs(input_folder, exist_ok=True)
+    os.makedirs(output_folder, exist_ok=True)
+
+    all_files = os.listdir(input_folder)
+    video_files = [f for f in all_files if f.lower().endswith(('.mp4', '.mov', '.avi'))]
+    image_files = [f for f in all_files if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+
+    if not video_files:
+        print("📂 No video files found in /app/input. Exiting gracefully...")
+        exit(0)
+
+    if not image_files:
+        print("📂 No image file found in /app/input. Exiting gracefully...")
+        exit(0)
+
+    # Proceed with transcription and GIF generation
+    transcribe_videos()
+    split_and_merge_video(input_folder, os.path.join(output_folder, "🤸.gif"))

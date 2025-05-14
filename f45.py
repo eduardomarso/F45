@@ -198,6 +198,24 @@ def clean_transcription(text):
     return text
 
 
+def process_image(image_path, output_folder):
+    image = Image.open(image_path)
+
+    # Get GIF size to crop and resize image to the same dimensions
+    gif_path = os.path.join(output_folder, "🤸.gif")
+    gif = Image.open(gif_path)
+    gif_width, gif_height = gif.size
+
+    # Resize the image
+    image = image.resize((gif_width, gif_height), Image.LANCZOS)
+
+    # Compress image without losing quality
+    compressed_image_path = os.path.join(output_folder, "📝.png")
+    image.save(compressed_image_path, format="PNG", quality=95)
+
+    print(f"✅ Image saved as {compressed_image_path}")
+
+
 if __name__ == "__main__":
     input_folder = "/app/input"
     output_folder = "/app/output"
@@ -222,3 +240,6 @@ if __name__ == "__main__":
     # Proceed with transcription and GIF generation
     transcribe_video(transcript_video)
     split_and_merge_video(workout_video, os.path.join(output_folder, "🤸.gif"))
+
+    # Process the image to match GIF size and save it
+    process_image(image_path, output_folder)

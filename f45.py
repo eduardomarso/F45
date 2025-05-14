@@ -216,6 +216,9 @@ if __name__ == "__main__":
         print("📂 No image file found in /app/input. Exiting gracefully...")
         exit(0)
 
+    # Identify workout and transcript videos
+    workout_video, transcript_video, image_path = identify_files(input_folder)
+
     # Proceed with transcription and GIF generation
-    transcribe_videos()
-    split_and_merge_video(input_folder, os.path.join(output_folder, "🤸.gif"))
+    transcribe_video(transcript_video)
+    split_and_merge_video(workout_video, os.path.join(output_folder, "🤸.gif"))

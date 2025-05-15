@@ -1,6 +1,9 @@
+git clone https://github.com/ezodis/F45.git
+cd F45
+rm -rf .git
+rm -rf readme.txt
 docker build -t f45 .
-docker run -d --rm \
-  -v "$(pwd)/Input/workout":/app/input/workout \
-  -v "$(pwd)/Input/transcript":/app/input/transcript \
+docker run --rm \
+  -v "$(pwd)/Input":/app/input \
   -v "$(pwd)/Output":/app/output \
   f45

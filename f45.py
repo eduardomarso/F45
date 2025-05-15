@@ -19,7 +19,6 @@ def convert_mov_to_mp4(input_path):
 
     try:
         subprocess.run(command, check=True)
-
         if wait_for_file(output_path):
             os.remove(input_path)
             print(f"✅ Conversion successful: {output_path}")
@@ -61,7 +60,7 @@ def resize_frame(frame, width):
 
 def identify_files(input_dir):
     video_paths = []
-    image_path = None
+    image_paths = []
 
     for file in os.listdir(input_dir):
         path = os.path.join(input_dir, file)
@@ -69,7 +68,7 @@ def identify_files(input_dir):
             if file.lower().endswith(('.mp4', '.mov', '.avi')):
                 video_paths.append(path)
             elif file.lower().endswith(('.jpg', '.jpeg', '.png')):
-                image_path = path
+                image_paths.append(path)
 
     durations = []
     for i in range(len(video_paths)):
@@ -87,7 +86,7 @@ def identify_files(input_dir):
     workout_video = video_paths[np.argmax(durations)]
     transcript_video = video_paths[np.argmin(durations)]
 
-    return workout_video, transcript_video, image_path
+    return workout_video, transcript_video, image_paths
 
 
 def split_and_merge_video(input_video, output_gif, segment_duration=10):
@@ -198,22 +197,33 @@ def clean_transcription(text):
     return text
 
 
-def process_image(image_path, output_folder):
-    image = Image.open(image_path)
+def process_images(image_paths, output_folder):
+    cropped_images = []
+    target_width = 2200
+    target_height = 1242
 
-    # Get GIF size to crop and resize image to the same dimensions
-    gif_path = os.path.join(output_folder, "🤸.gif")
-    gif = Image.open(gif_path)
-    gif_width, gif_height = gif.size
+    for path in sorted(image_paths):
+        img = Image.open(path)
+        width, height = img.size
 
-    # Resize the image
-    image = image.resize((gif_width, gif_height), Image.LANCZOS)
+        crop_x = (width - target_width) // 2
+        crop_y = (height - target_height) // 2
 
-    # Compress image without losing quality
-    compressed_image_path = os.path.join(output_folder, "📝.png")
-    image.save(compressed_image_path, format="PNG", quality=95)
+        cropped = img.crop((crop_x, crop_y, crop_x + target_width, crop_y + target_height))
+        cropped_images.append(cropped)
 
-    print(f"✅ Image saved as {compressed_image_path}")
+    total_height = target_height * len(cropped_images)
+    final_image = Image.new("RGB", (target_width, total_height))
+
+    y_offset = 0
+    for img in cropped_images:
+        final_image.paste(img, (0, y_offset))
+        y_offset += target_height
+
+    output_path = os.path.join(output_folder, "📝.png")
+    final_image.save(output_path, format="PNG", quality=95)
+
+    print(f"✅ Final image saved as {output_path}")
 
 
 if __name__ == "__main__":
@@ -231,15 +241,17 @@ if __name__ == "__main__":
         exit(0)
 
     if not image_files:
-        print("📂 No image file found in /app/input. Exiting gracefully...")
+        print("📂 No image files found in /app/input. Exiting gracefully...")
         exit(0)
 
-    # Identify workout and transcript videos
-    workout_video, transcript_video, image_path = identify_files(input_folder)
+    # Identify files
+    workout_video, transcript_video, image_paths = identify_files(input_folder)
 
-    # Proceed with transcription and GIF generation
+    # Process images (first)
+    process_images(image_paths, output_folder)
+
+    # Then transcription
     transcribe_video(transcript_video)
-    split_and_merge_video(workout_video, os.path.join(output_folder, "🤸.gif"))
 
-    # Process the image to match GIF size and save it
-    process_image(image_path, output_folder)
+    # Then GIF creation
+    split_and_merge_video(workout_video, os.path.join(output_folder, "🤸.gif"))
